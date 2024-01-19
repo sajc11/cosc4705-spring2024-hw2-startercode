@@ -1,6 +1,6 @@
-# COSC435 Fall 2022 Homework 2
+# COSC4705 Spring 2024 Homework 2
 
-Please see the [homework description](https://georgetown.instructure.com/courses/152627/assignments/797845) for a full-write up.
+Please see the [homework description](https://georgetown.instructure.com/courses/183077/assignments/966043) for a full-write up.
 
 ## Starter and sample code
 

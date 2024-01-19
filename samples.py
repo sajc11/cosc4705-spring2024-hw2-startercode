@@ -2,7 +2,7 @@ import struct
 from message import UnencryptedIMMessage
 
 def main():
-    msg = UnencryptedIMMessage("msherr", "cosc435 is really fun!")
+    msg = UnencryptedIMMessage("msherr", "cosc4705 is really fun!")
 
     print( f"Here's the message: {msg}" )
 
