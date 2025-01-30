@@ -9,6 +9,9 @@ import select
 import struct
 import time
 import sys
+import signal
+
+# could add signal to track cmd+c "violent exits"
 
 def parseArgs():
     parser = argparse.ArgumentParser()
@@ -41,6 +44,8 @@ def main():
     serverSock.bind(("", args.port))
     serverSock.listen()
 
+    log.debug(f"Server is running on port {args.port} and listening for connections...")
+    
     # Keep track of all sockets
     readSet = [serverSock]
     
@@ -54,6 +59,18 @@ def main():
         except:
             pass
 
+    def handle_shutdown(signal, frame):
+        """Handle SIGINT or SIGTERM to gracefully shut down the server"""
+        log.info("Caught shutdown signal. Cleaning up and exiting...")
+        for sock in readSet[:]:
+            remove_client(sock)
+        exit(0)
+
+    # Register signal handlers
+    signal.signal(signal.SIGINT, handle_shutdown)
+    signal.signal(signal.SIGTERM, handle_shutdown)
+
+    # Main loop to handle incoming connections and messages
     while True:
         try:
             # Use select to monitor sockets
@@ -70,6 +87,7 @@ def main():
                         # Get message length
                         packedLen = sock.recv(4, socket.MSG_WAITALL)
                         if not packedLen:
+                            log.info(f"Client {sock.getpeername()} disconnected gracefully.")
                             remove_client(sock)
                             continue
 
@@ -83,6 +101,7 @@ def main():
                         # Get message content
                         jsonData = sock.recv(msgLen, socket.MSG_WAITALL)
                         if not jsonData:
+                            log.info(f"Client {sock.getpeername()} disconnected gracefully.")
                             remove_client(sock)
                             continue
 
@@ -109,8 +128,9 @@ def main():
                         for client in disconnected:
                             remove_client(client)
 
+                    # Handle abrupt disconnections
                     except (ConnectionResetError, BrokenPipeError):
-                        log.debug("Client disconnected unexpectedly")
+                        log.info(f"Client {sock.getpeername()} disconnected unexpectedly.")
                         remove_client(sock)
                     except Exception as e:
                         log.error(f"Unexpected error handling client: {e}")

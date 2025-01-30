@@ -49,7 +49,8 @@ def main():
     log.setLevel(level)
     log.info(f"running with {args}")
     
-    log.debug(f"connecting to server {args.server}")
+    log.debug(f"Attempting to connect to server {args.server} on port {args.port}")
+
     try:
         s = socket.create_connection((args.server,args.port))
         log.info("connected to server")
