@@ -1,7 +1,5 @@
-"""
-A skeleton from which you should write your client.
-"""
-
+#!/usr/bin/env python3
+# client.py:
 
 import socket
 import json
@@ -12,9 +10,7 @@ import sys
 import time
 import datetime
 import struct
-
 from message import UnencryptedIMMessage
-
 
 def parseArgs():
     """
@@ -42,7 +38,6 @@ def parseArgs():
     args = parser.parse_args()
     return args
 
-
 def main():
     args = parseArgs()
 
@@ -62,18 +57,96 @@ def main():
         log.error("cannot connect")
         exit(1)
 
-    # here's a nice hint for you...
     readSet = [s] + [sys.stdin]
 
     while True:
-        # HERE'S WHERE YOU NEED TO FILL IN STUFF
+        try:
+            readable, _, exceptional = select.select(readSet, [], readSet)
+            
+            for source in readable:
+                if source == sys.stdin:
+                    # Handle user input
+                    line = sys.stdin.readline()
+                    if not line:  # EOF (Ctrl+D)
+                        log.debug("EOF detected, exiting...")
+                        return
 
-        # DELETE THE NEXT TWO LINES. It's here now to prevent busy-waiting.
-        time.sleep(1)
-        log.info("not much happening here.  someone should rewrite this part of the code.")
+                    # Check message length before sending
+                    if len(line.strip()) > 4096:  # 4KB limit
+                        log.error("Message too long. Max size: 4KB")
+                        continue
+                        
+                    # Create and send message
+                    if line.strip():  # Only send non-empty messages
+                        msg = UnencryptedIMMessage(args.nickname, line.strip())
+                        try:
+                            packedSize, jsonData = msg.serialize()
+                            s.sendall(packedSize + jsonData)
+                            log.debug(f"Sent message: {line.strip()}")
+                        except (BrokenPipeError, ConnectionResetError):
+                            log.error("Lost connection to server. Exiting...")
+                            return
+                        except Exception as e:
+                            log.error(f"Error sending message: {e}")
+                            return
+                            
+                else:  # source == s (socket)
+                    try:
+                        # Get message length
+                        packedLen = s.recv(4, socket.MSG_WAITALL)
+                        if not packedLen:
+                            log.error("Server has shut down. Exiting...")
+                            return
+                            
+                        # Get message length and verify it's reasonable
+                        msgLen = struct.unpack("!L", packedLen)[0]
+                        if msgLen > 4096:  # 4KB limit
+                            log.error(f"Message too large ({msgLen} bytes)")
+                            continue
+                        
+                        # Get message
+                        jsonData = s.recv(msgLen, socket.MSG_WAITALL)
+                        if not jsonData:
+                            log.error("Server closed connection during message receive")
+                            return
+                        
+                        # Validate JSON before parsing
+                        try:
+                            json.loads(jsonData)
+                        except json.JSONDecodeError as e:
+                            log.debug(f"Received invalid JSON: {e}")
+                            continue
+                            
+                        # Parse and print message
+                        try:
+                            msg = UnencryptedIMMessage()
+                            msg.parseJSON(jsonData)
+                            print(msg)  # Print exactly as required
+                        except Exception as e:
+                            log.debug(f"Error parsing message: {e}")
+                            continue
+                        
+                    except (ConnectionResetError, BrokenPipeError):
+                        log.error("Lost connection to server")
+                        return
+                    except Exception as e:
+                        log.error(f"Error receiving message: {e}")
+                        return
+            
+            # Handle exceptional conditions
+            if exceptional:
+                log.error("Socket exception occurred")
+                return
+                
+        except KeyboardInterrupt:
+            log.info("Interrupted by user")
+            break
+        except Exception as e:
+            log.error(f"Unexpected error: {e}")
+            break
 
-        
+    s.close()
+    log.debug("Connection closed")
 
 if __name__ == "__main__":
     exit(main())
-
